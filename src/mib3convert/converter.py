@@ -135,8 +135,15 @@ def _video_filters(profile: Profile, info: MediaInfo) -> str:
     return ",".join(filters)
 
 
-# H.264 profiles MIB3 units handle (excludes High 10 / 4:2:2 / 4:4:4).
-_SAFE_H264_PROFILES = {"constrained baseline", "baseline", "main", "high"}
+# Rank of H.264 profiles by feature set. A source may be stream-copied only if
+# its profile is no higher than the target profile (e.g. copying a High-profile
+# source into a Baseline target would keep the very features MIB3 can't decode).
+_PROFILE_RANK = {
+    "constrained baseline": 0,
+    "baseline": 0,
+    "main": 1,
+    "high": 2,
+}
 
 
 def _level_ceiling(profile: Profile) -> int:
@@ -159,7 +166,10 @@ def video_can_copy(profile: Profile, info: MediaInfo) -> bool:
         return False
     if profile.fps_cap and info.fps and info.fps > profile.fps_cap + 0.01:
         return False
-    if info.v_profile and info.v_profile.lower() not in _SAFE_H264_PROFILES:
+    # Source H.264 profile must be known and no higher than the target's.
+    target_rank = _PROFILE_RANK.get(profile.h264_profile.lower())
+    src_rank = _PROFILE_RANK.get((info.v_profile or "").lower())
+    if target_rank is None or src_rank is None or src_rank > target_rank:
         return False
     if info.v_level and info.v_level > _level_ceiling(profile):
         return False

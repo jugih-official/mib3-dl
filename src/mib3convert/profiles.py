@@ -28,14 +28,36 @@ class Profile:
     audio_channels: int
 
 
-# Native MIB3 panel is ~1540x720; 720p is a safe, universally accepted ceiling.
+# MIB3 units reliably decode only H.264 *Baseline* (no CABAC, no B-frames);
+# High/Main-profile streams often play audio with a black/absent picture. Every
+# confirmed-working community config uses Baseline. Native panel is 1280x720 or
+# 1540x720, so 720p is the ceiling. 23.976 fps constant is the safest rate
+# (>=30 fps or 5.1 audio is a known cause of files being rejected/greyed out).
 SAFE = Profile(
     name="safe",
-    description="1280x720, keeps source fps up to 30, 192k stereo AAC. Good default.",
+    description="Baseline L3.1, 1280x720, 23.976 fps, stereo AAC. Recommended default.",
     max_width=1280,
     max_height=720,
-    h264_profile="high",
-    h264_level="4.0",
+    h264_profile="baseline",
+    h264_level="3.1",
+    crf=20,
+    preset="veryfast",
+    fps_force="24000/1001",
+    fps_cap=None,
+    audio_bitrate="192k",
+    audio_sample_rate=48000,
+    audio_channels=2,
+)
+
+# Same Baseline target, but keep the source frame rate (capped at 30). Use when
+# forcing 23.976 makes 25/30 fps content look juddery.
+SMOOTH = Profile(
+    name="smooth",
+    description="Baseline L3.1, 1280x720, keeps source fps up to 30, stereo AAC.",
+    max_width=1280,
+    max_height=720,
+    h264_profile="baseline",
+    h264_level="3.1",
     crf=20,
     preset="veryfast",
     fps_force=None,
@@ -45,31 +67,14 @@ SAFE = Profile(
     audio_channels=2,
 )
 
-# Matches the exact combo forum users found works on the pickiest units.
-STRICT = Profile(
-    name="strict",
-    description="1280x720, forces 23.976 fps, 320k stereo AAC. Use if 'safe' greys out.",
-    max_width=1280,
-    max_height=720,
-    h264_profile="high",
-    h264_level="4.0",
-    crf=20,
-    preset="veryfast",
-    fps_force="24000/1001",
-    fps_cap=None,
-    audio_bitrate="320k",
-    audio_sample_rate=48000,
-    audio_channels=2,
-)
-
-# Very old / low-end MIB units: keep it small and conservative.
+# Smallest / most conservative: for the oldest or pickiest units.
 COMPAT = Profile(
     name="compat",
-    description="854x480, forces 23.976 fps, H.264 Main, 192k stereo AAC. Maximum compatibility.",
+    description="Baseline L3.0, 854x480, 23.976 fps, stereo AAC. Maximum compatibility.",
     max_width=854,
     max_height=480,
-    h264_profile="main",
-    h264_level="3.1",
+    h264_profile="baseline",
+    h264_level="3.0",
     crf=21,
     preset="veryfast",
     fps_force="24000/1001",
@@ -79,5 +84,5 @@ COMPAT = Profile(
     audio_channels=2,
 )
 
-PROFILES = {p.name: p for p in (SAFE, STRICT, COMPAT)}
+PROFILES = {p.name: p for p in (SAFE, SMOOTH, COMPAT)}
 DEFAULT_PROFILE = SAFE.name

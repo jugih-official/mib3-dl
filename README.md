@@ -157,7 +157,7 @@ mib3convert --path ~/Downloads
 Pick a profile:
 
 ```bash
-mib3convert --profile strict big_movie.avi
+mib3convert --profile smooth big_movie.avi
 mib3convert --list-profiles
 ```
 
@@ -186,24 +186,31 @@ options:
 
 ## Encoding profiles
 
-| Profile  | Resolution | Frame rate           | Audio            | When to use                              |
-| -------- | ---------- | -------------------- | ---------------- | ---------------------------------------- |
-| `safe`   | ≤ 1280×720 | keeps source, ≤30fps | 192k stereo AAC  | **Default.** Works on most MIB3 units.   |
-| `strict` | ≤ 1280×720 | forced 23.976 fps    | 320k stereo AAC  | If `safe` greys out on a picky unit.     |
-| `compat` | ≤ 854×480  | forced 23.976 fps    | 192k stereo AAC  | Oldest / lowest-end units.               |
+| Profile  | H.264        | Resolution | Frame rate           | When to use                                        |
+| -------- | ------------ | ---------- | -------------------- | -------------------------------------------------- |
+| `safe`   | Baseline L3.1 | ≤ 1280×720 | forced 23.976 fps    | **Default.** The most broadly compatible config.   |
+| `smooth` | Baseline L3.1 | ≤ 1280×720 | keeps source, ≤30fps | If 23.976 makes 25/30fps content look juddery.     |
+| `compat` | Baseline L3.0 | ≤ 854×480  | forced 23.976 fps    | Oldest / pickiest units.                           |
 
-All profiles output MP4 / H.264 / `yuv420p` / stereo AAC with `+faststart`.
-Aspect ratio is always preserved and the video is never upscaled.
+All profiles output MP4 / **H.264 Baseline** (no B-frames / no CABAC) /
+`yuv420p` / **stereo** AAC (192k, 48 kHz) with `+faststart`. Aspect ratio is
+always preserved and the video is never upscaled.
+
+> **Why Baseline?** MIB3 / MOI3 units reliably decode only H.264 **Baseline**
+> profile. High- or Main-profile files typically play the audio but show a
+> black/absent picture. This is the single most common cause of "sound but no
+> video" — see [Compatibility notes](#compatibility-notes).
 
 ## The output format (technical target)
 
 Regardless of profile, every output is:
 
 - **Container:** MP4, with the `moov` atom moved to the front (`+faststart`)
-- **Video:** H.264 (`libx264`), `yuv420p`, High (or Main for `compat`) profile
+- **Video:** H.264 (`libx264`), **Baseline profile** (no B-frames, no CABAC),
+  Level 3.1 (3.0 for `compat`), `yuv420p`
 - **Resolution:** scaled to fit the profile's box, aspect-preserving, even
-  dimensions, never upscaled
-- **Frame rate:** capped (or forced) per profile to stay within what MIB3 accepts
+  dimensions, never upscaled (≤ 1280×720)
+- **Frame rate:** forced to 23.976 fps (or capped at 30 for `smooth`)
 - **Audio:** AAC-LC, **stereo** (5.1 is downmixed), 48 kHz
 - **Subtitles:** dropped (they can prevent playback on some units)
 
@@ -238,7 +245,7 @@ Re-encoding video is inherently CPU-heavy. Two things keep it quick:
 ## Tips for the car
 
 - Format the USB stick as **FAT32** or **exFAT**.
-- If a file still greys out, try `--profile strict`, then `--profile compat`.
+- If a file still won't play, try `--profile compat`.
 - Some units limit how many files a folder may contain — keep folders tidy.
 
 ## Troubleshooting
@@ -246,9 +253,30 @@ Re-encoding video is inherently CPU-heavy. Two things keep it quick:
 | Symptom                                   | Fix                                                        |
 | ----------------------------------------- | --------------------------------------------------------- |
 | `ffmpeg not found`                        | Install ffmpeg (see [Requirements](#requirements)).       |
-| File plays audio but greys out on screen  | Use `--profile strict`, then `--profile compat`.          |
+| **Audio plays but no picture / black**    | The source was High-profile H.264. The default `safe` profile now re-encodes to Baseline — reconvert with the current version. Still failing? Try `--profile compat`. |
+| File greys out / won't select             | Try `--profile compat` (smaller, Level 3.0).              |
 | Yle download fails                        | Content may be Finland-only; check the address & network. |
-| Picker shows no files                     | Point it at the right folder with `--path`.               |
+| Picker shows no files                     | Browse to the folder, or type its path in the picker.     |
+
+## Compatibility notes
+
+The encoding target is based on the official **VW/Audi Self-Study Program 970893,
+"Third-generation modular infotainment matrix"** (the MIB3 platform SSP, 2021),
+plus corroborating owner reports:
+
+- The SSP lists H.264 (`.mp4 .m4v .mov .avi`) as supported, with a general
+  ceiling of **1920×1080 @ 30 fps, 15 Mbit/s**, and panels of 1280×720 or
+  1540×720 — but it does **not** restrict the H.264 profile.
+- In practice, MIB3 / MOI3 decoders reliably handle only H.264 **Baseline**
+  profile. High/Main-profile streams commonly result in **audio with no
+  picture** — the single most-reported MIB3 video problem. Every confirmed
+  working community config uses Baseline (typically Level 3.0/3.1, ≤720p,
+  23.976 fps, stereo AAC). `mib3convert` targets exactly that.
+- Frame rates at/above 30 fps and 5.1 audio are known to make files rejected or
+  greyed-out, so output is 23.976 fps and stereo by default.
+
+Behaviour still varies by firmware/region; `smooth` and `compat` exist for the
+cases the default doesn't cover.
 
 ## License
 
