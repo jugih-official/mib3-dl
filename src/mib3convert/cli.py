@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import os
 import shutil
 import sys
 import tempfile
@@ -37,7 +38,7 @@ from .downloader import (
     ensure_yle_dl,
 )
 from .menu import choose
-from .picker import pick_video
+from .picker import pick_directory, pick_video
 from .profiles import DEFAULT_PROFILE, PROFILES
 
 console = Console()
@@ -137,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
     # `temp_dir` holds a downloaded original that we clean up at the end.
     auto = False
     temp_dir: Path | None = None
+    out_dir: Path | None = None
     try:
         if args.input:
             src = Path(args.input).expanduser()
@@ -156,7 +158,16 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
 
             if source == "yle":
-                rc = _resolve_yle()
+                url = _prompt_yle_url()
+                if isinstance(url, int):
+                    return url
+                # Ask for the destination *before* downloading, so the
+                # download + conversion still run unattended afterwards.
+                out_dir = _choose_output_dir(args, Path.cwd())
+                if out_dir is None and not args.output:
+                    console.print("[yellow]Cancelled.[/yellow]")
+                    return 1
+                rc = _download_yle(url)
                 if isinstance(rc, int):
                     return rc
                 src, temp_dir = rc
@@ -168,8 +179,12 @@ def main(argv: list[str] | None = None) -> int:
                     console.print("[yellow]No file selected.[/yellow]")
                     return 1
                 src = picked
+                out_dir = _choose_output_dir(args, src.parent)
+                if out_dir is None and not args.output:
+                    console.print("[yellow]Cancelled.[/yellow]")
+                    return 1
 
-        return _run_conversion(args, src, auto)
+        return _run_conversion(args, src, auto, out_dir)
     except KeyboardInterrupt:
         console.print("[yellow]Cancelled.[/yellow]")
         return 130
@@ -177,11 +192,15 @@ def main(argv: list[str] | None = None) -> int:
         if temp_dir is not None:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-def _resolve_yle() -> tuple[Path, Path] | int:
-    """Prompt for a Yle Areena URL and download it.
+def _choose_output_dir(args: argparse.Namespace, start: Path) -> Path | None:
+    """Ask where to save the result. None means cancelled (or not asked)."""
+    if args.output:
+        return None  # an explicit -o wins; don't ask
+    return pick_directory(start)
 
-    Returns (downloaded_file, temp_dir) on success, or an exit code on failure.
-    """
+
+def _prompt_yle_url() -> str | int:
+    """Prompt for a Yle Areena URL. Returns the URL or an exit code."""
     import questionary
 
     try:
@@ -194,7 +213,11 @@ def _resolve_yle() -> tuple[Path, Path] | int:
     if not url or not url.strip():
         console.print("[yellow]No address entered.[/yellow]")
         return 1
+    return url.strip()
 
+
+def _download_yle(url: str) -> tuple[Path, Path] | int:
+    """Download the URL. Returns (file, temp_dir) or an exit code."""
     temp_dir = Path(tempfile.mkdtemp(prefix="mib3_yle_"))
     console.print("[cyan]Downloading from Yle Areena…[/cyan]")
     try:
@@ -207,7 +230,12 @@ def _resolve_yle() -> tuple[Path, Path] | int:
     return src, temp_dir
 
 
-def _run_conversion(args: argparse.Namespace, src: Path, auto: bool) -> int:
+def _run_conversion(
+    args: argparse.Namespace,
+    src: Path,
+    auto: bool,
+    out_dir: Path | None = None,
+) -> int:
     """Probe src, decide the output path, and transcode. `auto` skips prompts."""
     profile = PROFILES[args.profile]
     if args.preset:
@@ -224,6 +252,8 @@ def _run_conversion(args: argparse.Namespace, src: Path, auto: bool) -> int:
     # --- resolve output --------------------------------------------------
     if args.output:
         dst = Path(args.output).expanduser()
+    elif out_dir is not None:
+        dst = out_dir / f"{src.stem}_mib3.mp4"
     elif auto:
         # Downloaded original lives in a temp dir; drop the result in the CWD.
         dst = Path.cwd() / f"{src.stem}_mib3.mp4"
@@ -242,7 +272,14 @@ def _run_conversion(args: argparse.Namespace, src: Path, auto: bool) -> int:
         if not overwrite:
             console.print("[yellow]Cancelled.[/yellow]")
             return 1
-    dst.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        console.print(f"[red]Cannot create output folder {dst.parent}:[/red] {exc}")
+        return 2
+    if not os.access(dst.parent, os.W_OK):
+        console.print(f"[red]Output folder is not writable:[/red] {dst.parent}")
+        return 2
 
     copy_v, copy_a = plan(profile, info)
     if copy_v and copy_a:

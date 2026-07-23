@@ -63,15 +63,17 @@ def fuzzy_score(query: str, text: str) -> tuple | None:
 
 
 class _Entry:
-    """One row in the browser: a parent link, a directory, or a video file."""
+    """One row: 'use this folder', a parent link, a directory, or a video file."""
 
     __slots__ = ("kind", "path", "name", "label")
 
     def __init__(self, kind: str, path: Path, name: str):
-        self.kind = kind  # "up" | "dir" | "file"
+        self.kind = kind  # "use" | "up" | "dir" | "file"
         self.path = path
         self.name = name
-        if kind == "up":
+        if kind == "use":
+            self.label = "[green bold]✓ Use this folder[/green bold]"
+        elif kind == "up":
             self.label = "[cyan]../[/cyan]  [dim](parent folder)[/dim]"
         elif kind == "dir":
             self.label = f"[cyan]{name}/[/cyan]"
@@ -79,9 +81,15 @@ class _Entry:
             self.label = f"{name}  [dim]({_human_size(path)})[/dim]"
 
 
-def _list_dir(directory: Path) -> list[_Entry]:
-    """Entries for a directory: parent link, subfolders, then video files."""
+def _list_dir(directory: Path, dirs_only: bool = False) -> list[_Entry]:
+    """Entries for a directory.
+
+    File mode: parent link, subfolders, then video files.
+    Folder mode (dirs_only): a 'use this folder' row, parent link, subfolders.
+    """
     entries: list[_Entry] = []
+    if dirs_only:
+        entries.append(_Entry("use", directory, "."))
     if directory.parent != directory:  # not the filesystem root
         entries.append(_Entry("up", directory.parent, ".."))
     try:
@@ -96,7 +104,7 @@ def _list_dir(directory: Path) -> list[_Entry]:
         try:
             if child.is_dir():
                 dirs.append(_Entry("dir", child, child.name))
-            elif child.is_file() and child.suffix.lower() in VIDEO_EXTS:
+            elif not dirs_only and child.is_file() and child.suffix.lower() in VIDEO_EXTS:
                 files.append(_Entry("file", child, child.name))
         except OSError:
             continue
@@ -105,8 +113,11 @@ def _list_dir(directory: Path) -> list[_Entry]:
     return entries
 
 
-def _build_app(start_dir: Path):
-    """Construct the Textual browser App (imported lazily)."""
+def _build_app(start_dir: Path, dirs_only: bool = False, heading: str = ""):
+    """Construct the Textual browser App (imported lazily).
+
+    dirs_only=True turns it into an output-folder chooser.
+    """
     from rich.text import Text
     from textual.app import App, ComposeResult
     from textual.binding import Binding
@@ -117,6 +128,7 @@ def _build_app(start_dir: Path):
     class VideoBrowser(App):
         CSS = """
         Screen { layout: vertical; }
+        #heading { padding: 0 1; color: $success; text-style: bold; }
         #cwd { padding: 0 1; color: $accent; text-style: bold; }
         #search { margin: 0 1; }
         #count { padding: 0 1; color: $text-muted; }
@@ -137,6 +149,8 @@ def _build_app(start_dir: Path):
             self._matches: list[_Entry] = []
 
         def compose(self) -> ComposeResult:
+            if heading:
+                yield Label(heading, id="heading")
             yield Label("", id="cwd")
             yield Input(
                 placeholder="Type to filter · /path or ~ to jump · ↑↓ move · Enter open/pick · Esc cancel",
@@ -154,7 +168,7 @@ def _build_app(start_dir: Path):
         # --- data ------------------------------------------------------
         def _load_dir(self, directory: Path) -> None:
             self._cwd = directory.resolve()
-            self._entries = _list_dir(self._cwd)
+            self._entries = _list_dir(self._cwd, dirs_only=dirs_only)
             self.query_one("#cwd", Label).update(f"📁 {self._cwd}")
             search = self.query_one("#search", Input)
             if search.value:
@@ -170,7 +184,7 @@ def _build_app(start_dir: Path):
                 # While searching, drop the parent link and rank by fuzzy score.
                 scored = []
                 for e in self._entries:
-                    if e.kind == "up":
+                    if e.kind in ("up", "use"):
                         continue
                     s = fuzzy_score(query, e.name)
                     if s is not None:
@@ -186,11 +200,13 @@ def _build_app(start_dir: Path):
             self._matches = matches
             if matches:
                 ol.highlighted = 0
-            nfiles = sum(1 for e in self._entries if e.kind == "file")
             ndirs = sum(1 for e in self._entries if e.kind == "dir")
-            self.query_one("#count", Label).update(
-                f"{ndirs} folder(s), {nfiles} video(s)"
-            )
+            if dirs_only:
+                summary = f"{ndirs} subfolder(s)"
+            else:
+                nfiles = sum(1 for e in self._entries if e.kind == "file")
+                summary = f"{ndirs} folder(s), {nfiles} video(s)"
+            self.query_one("#count", Label).update(summary)
 
         # --- events ----------------------------------------------------
         def on_input_changed(self, event) -> None:
@@ -222,7 +238,9 @@ def _build_app(start_dir: Path):
                 self._activate(self._matches[idx])
 
         def _activate(self, entry: _Entry) -> None:
-            if entry.kind in ("up", "dir"):
+            if entry.kind == "use":
+                self._choose(self._cwd)
+            elif entry.kind in ("up", "dir"):
                 self._load_dir(entry.path)
             else:
                 self._choose(entry.path)
@@ -257,4 +275,10 @@ def _build_app(start_dir: Path):
 def pick_video(root: Path) -> Path | None:
     """Open the filesystem browser starting at root. Returns the chosen path."""
     start = root if root.is_dir() else Path.cwd()
-    return _build_app(start).run()
+    return _build_app(start, heading="Select a video to convert").run()
+
+
+def pick_directory(root: Path, heading: str = "Select the output folder") -> Path | None:
+    """Open the folder chooser starting at root. Returns the chosen directory."""
+    start = root if root.is_dir() else Path.cwd()
+    return _build_app(start, dirs_only=True, heading=heading).run()

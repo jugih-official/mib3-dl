@@ -50,6 +50,8 @@ stereo AAC** file with a capped frame rate, a safe resolution, and a fast-start
 - 🎛 **Full-screen file browser** — navigate the whole filesystem with the arrow
   keys: open folders, go up with `../` (or `Ctrl+U`), or type a path like
   `/media/usb` to jump anywhere. Works no matter where your file lives.
+- 📂 **Choose the output folder** — after picking the source, pick where the
+  result goes (e.g. straight onto a mounted USB stick).
 - 🔎 **Fuzzy file search** — start typing to filter the current folder; `dh`
   finds `Die Hard.mkv`.
 - 📥 **Yle Areena downloads built in** — paste a programme address and it
@@ -123,6 +125,22 @@ Choose **Local file** and you get a full-screen filesystem browser:
   straight there — so you can reach a file anywhere, not just under the current
   directory.
 
+Once you've picked the file, a second screen asks **where to save the result**:
+
+```
+ Select the output folder
+ 📁 /media/usb
+ ╭──────────────────────────────────────────╮
+ │ > ✓ Use this folder                       │
+ │   ../  (parent folder)                    │
+ │   movies/                                 │
+ ╰──────────────────────────────────────────╯
+```
+
+Navigate the same way (arrows, `../`, `Ctrl+U`, or type a path), then pick
+**✓ Use this folder** to save there — handy for writing straight to a mounted
+USB stick. The file is named `<source name>_mib3.mp4`.
+
 ### Downloading from Yle Areena
 
 Choose **Yle Areena** and you'll be asked for the address:
@@ -131,10 +149,14 @@ Choose **Yle Areena** and you'll be asked for the address:
 ? Paste the Yle Areena video address: https://areena.yle.fi/1-72801351
 ```
 
-From there it's fully automatic — it downloads the programme and converts it to
-a MIB3-ready MP4 **with no further questions**. The finished file is written to
-your **current directory** as `<programme title>_mib3.mp4`, and the temporary
-download is cleaned up afterwards.
+You're then asked for the **output folder** (the same chooser as above). After
+that it's fully automatic — it downloads the programme and converts it to a
+MIB3-ready MP4 **with no further questions**, so you can walk away. The finished
+file is written to the folder you chose as `<programme title>_mib3.mp4`, and the
+temporary download is cleaned up afterwards.
+
+> The folder is requested *before* the download starts, precisely so the
+> download and conversion can run unattended.
 
 > Note: much of Yle Areena is only available inside Finland. If a download
 > fails, the tool shows `yle-dl`'s error with a hint.
