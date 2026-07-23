@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mib3convert"
+version = "0.1.0"
+description = "Convert virtually any video into a format VW MIB3 / MOI3 head units will actually play."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Jukka" }]
+keywords = ["video", "ffmpeg", "vw", "mib3", "moi3", "car", "converter"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Video :: Conversion",
+]
+dependencies = [
+    "textual>=0.60",
+    "questionary>=2.0",
+    "rich>=13.0",
+    "yle-dl>=20240000",
+]
+
+[project.urls]
+Homepage = "https://github.com/jukka/video-converter"
+
+[project.scripts]
+mib3convert = "mib3convert.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mib3convert"]
