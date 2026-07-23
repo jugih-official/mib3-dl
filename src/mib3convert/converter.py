@@ -41,6 +41,10 @@ class MediaInfo:
     has_audio: bool
     v_codec: str | None
     a_codec: str | None
+    pix_fmt: str | None = None
+    v_profile: str | None = None
+    v_level: int | None = None
+    a_channels: int | None = None
 
 
 def _parse_fraction(value: str) -> float | None:
@@ -95,6 +99,13 @@ def probe(path: Path) -> MediaInfo:
             except ValueError:
                 pass
 
+    v_level = None
+    if v and v.get("level") not in (None, "N/A", -99):
+        try:
+            v_level = int(v["level"])
+        except (ValueError, TypeError):
+            v_level = None
+
     return MediaInfo(
         duration=duration,
         width=int(v["width"]) if v and v.get("width") else None,
@@ -103,6 +114,10 @@ def probe(path: Path) -> MediaInfo:
         has_audio=a is not None,
         v_codec=v.get("codec_name") if v else None,
         a_codec=a.get("codec_name") if a else None,
+        pix_fmt=v.get("pix_fmt") if v else None,
+        v_profile=(v.get("profile") if v else None),
+        v_level=v_level,
+        a_channels=int(a["channels"]) if a and a.get("channels") else None,
     )
 
 
@@ -120,7 +135,52 @@ def _video_filters(profile: Profile, info: MediaInfo) -> str:
     return ",".join(filters)
 
 
+# H.264 profiles MIB3 units handle (excludes High 10 / 4:2:2 / 4:4:4).
+_SAFE_H264_PROFILES = {"constrained baseline", "baseline", "main", "high"}
+
+
+def _level_ceiling(profile: Profile) -> int:
+    """Profile.h264_level like '4.0' -> ffprobe integer level like 40."""
+    try:
+        return int(round(float(profile.h264_level) * 10))
+    except ValueError:
+        return 41
+
+
+def video_can_copy(profile: Profile, info: MediaInfo) -> bool:
+    """True when the source video already meets the target — no re-encode needed."""
+    if profile.fps_force is not None:
+        return False  # a forced fps always requires re-timing
+    if info.v_codec != "h264" or info.pix_fmt != "yuv420p":
+        return False
+    if not info.width or not info.height:
+        return False
+    if info.width > profile.max_width or info.height > profile.max_height:
+        return False
+    if profile.fps_cap and info.fps and info.fps > profile.fps_cap + 0.01:
+        return False
+    if info.v_profile and info.v_profile.lower() not in _SAFE_H264_PROFILES:
+        return False
+    if info.v_level and info.v_level > _level_ceiling(profile):
+        return False
+    return True
+
+
+def audio_can_copy(profile: Profile, info: MediaInfo) -> bool:
+    """True when the source audio is already stereo AAC — no re-encode needed."""
+    if not info.has_audio:
+        return False
+    return info.a_codec == "aac" and info.a_channels == profile.audio_channels
+
+
+def plan(profile: Profile, info: MediaInfo) -> tuple[bool, bool]:
+    """Return (copy_video, copy_audio) for this source/profile."""
+    return video_can_copy(profile, info), audio_can_copy(profile, info)
+
+
 def build_command(src: Path, dst: Path, profile: Profile, info: MediaInfo) -> list[str]:
+    copy_v, copy_a = plan(profile, info)
+
     cmd = [
         "ffmpeg", "-hide_banner", "-y",
         "-i", str(src),
@@ -129,23 +189,29 @@ def build_command(src: Path, dst: Path, profile: Profile, info: MediaInfo) -> li
     if info.has_audio:
         cmd += ["-map", "0:a:0"]
 
-    cmd += [
-        "-c:v", "libx264",
-        "-profile:v", profile.h264_profile,
-        "-level", profile.h264_level,
-        "-pix_fmt", "yuv420p",
-        "-preset", profile.preset,
-        "-crf", str(profile.crf),
-        "-vf", _video_filters(profile, info),
-    ]
+    if copy_v:
+        cmd += ["-c:v", "copy"]
+    else:
+        cmd += [
+            "-c:v", "libx264",
+            "-profile:v", profile.h264_profile,
+            "-level", profile.h264_level,
+            "-pix_fmt", "yuv420p",
+            "-preset", profile.preset,
+            "-crf", str(profile.crf),
+            "-vf", _video_filters(profile, info),
+        ]
 
     if info.has_audio:
-        cmd += [
-            "-c:a", "aac",
-            "-b:a", profile.audio_bitrate,
-            "-ac", str(profile.audio_channels),
-            "-ar", str(profile.audio_sample_rate),
-        ]
+        if copy_a:
+            cmd += ["-c:a", "copy"]
+        else:
+            cmd += [
+                "-c:a", "aac",
+                "-b:a", profile.audio_bitrate,
+                "-ac", str(profile.audio_channels),
+                "-ar", str(profile.audio_sample_rate),
+            ]
 
     cmd += [
         "-movflags", "+faststart",

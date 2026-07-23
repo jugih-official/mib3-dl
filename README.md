@@ -47,13 +47,17 @@ stereo AAC** file with a capped frame rate, a safe resolution, and a fast-start
 
 ## Features
 
-- 🎛 **Full-screen terminal UI** — pick your source and browse files with the
-  arrow keys; no need to remember paths.
-- 🔎 **Fuzzy file search** — start typing to filter; `dh` finds `Die Hard.mkv`.
+- 🎛 **Full-screen file browser** — navigate the whole filesystem with the arrow
+  keys: open folders, go up with `../` (or `Ctrl+U`), or type a path like
+  `/media/usb` to jump anywhere. Works no matter where your file lives.
+- 🔎 **Fuzzy file search** — start typing to filter the current folder; `dh`
+  finds `Die Hard.mkv`.
 - 📥 **Yle Areena downloads built in** — paste a programme address and it
   downloads (via the bundled `yle-dl`) and converts automatically.
 - 🎯 **Known-good MIB3/MOI3 target** — H.264 MP4 + stereo AAC, capped fps,
   faststart.
+- ⚡ **Fast** — a quick x264 preset by default, and if a file already meets the
+  MIB3 spec it's **remuxed instead of re-encoded** (near-instant).
 - 🧩 **Profiles** — `safe` (default), `strict`, and `compat` for stubborn units.
 - 📊 **Live progress bar** during encoding.
 - 🧹 **Safe by default** — never overwrites the input, cleans up partial files
@@ -110,9 +114,14 @@ You'll first be asked where the video comes from:
 
 - **↑ / ↓** move, **Enter** selects, **Esc** cancels.
 
-Choose **Local file** and you get a full-screen picker that recursively lists
-the video files under the search folder. Type to fuzzy-search, arrow to the one
-you want, press **Enter**, and it converts.
+Choose **Local file** and you get a full-screen filesystem browser:
+
+- **↑ / ↓** move, **Enter** opens a folder or picks a file.
+- **`../`** (top of the list) or **`Ctrl+U`** goes up to the parent folder.
+- **Type** to fuzzy-filter the current folder.
+- **Type a path** (e.g. `/media/usb` or `~/Videos`) and press **Enter** to jump
+  straight there — so you can reach a file anywhere, not just under the current
+  directory.
 
 ### Downloading from Yle Areena
 
@@ -165,7 +174,9 @@ options:
                         or ./<title>_mib3.mp4 for Yle downloads).
   -p, --profile NAME    Encoding profile: safe | strict | compat
                         (default: safe).
-  --path DIR            Folder the local file picker searches
+  --preset NAME         x264 speed/quality preset, overriding the profile
+                        (ultrafast … veryslow; faster = quicker, larger files).
+  --path DIR            Folder the local file browser starts in
                         (default: current directory).
   --list-profiles       Show the available profiles and exit.
   -y, --yes             Overwrite the output file without asking.
@@ -201,10 +212,28 @@ Regardless of profile, every output is:
 1. **Source selection** — a Textual menu (Yle Areena vs. local file).
 2. **Acquire** — either `yle-dl` downloads the programme into a temp folder, or
    you pick a local file via the fuzzy picker.
-3. **Probe** — `ffprobe` reads the source's resolution, frame rate, and audio.
-4. **Transcode** — `ffmpeg` re-encodes to the chosen profile, streaming a live
-   progress bar (partial output is deleted if you cancel).
-5. **Done** — you get a ready-to-play MP4; temporary downloads are removed.
+3. **Probe** — `ffprobe` reads the source's codecs, resolution, frame rate,
+   pixel format, H.264 profile/level, and audio channels.
+4. **Plan** — each stream that already meets the MIB3 target is **stream-copied**
+   (remuxed) instead of re-encoded. A file that's already compatible finishes in
+   seconds; only what actually needs changing gets re-encoded.
+5. **Transcode** — `ffmpeg` produces the MP4, streaming a live progress bar
+   (partial output is deleted if you cancel).
+6. **Done** — you get a ready-to-play MP4; temporary downloads are removed.
+
+### A note on speed
+
+Re-encoding video is inherently CPU-heavy. Two things keep it quick:
+
+- **Remux when possible.** If the source is already H.264 / yuv420p within the
+  target resolution and frame rate (and its audio is already stereo AAC), the
+  data is copied as-is — no quality loss and near-instant.
+- **A fast preset by default.** Profiles use the `veryfast` x264 preset. Want
+  smaller files and don't mind waiting? Add `--preset slow` (or `medium`).
+
+> The Yle Areena flow is download **then** convert — `yle-dl` fetches Yle's
+> original stream, which is then run through the same plan/transcode step. It is
+> not downloaded pre-formatted for MIB3.
 
 ## Tips for the car
 

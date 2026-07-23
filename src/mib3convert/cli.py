@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import shutil
 import sys
 import tempfile
@@ -26,6 +27,7 @@ from .converter import (
     MediaInfo,
     convert,
     ensure_ffmpeg,
+    plan,
     probe,
 )
 from .downloader import (
@@ -60,6 +62,15 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=list(PROFILES),
         default=DEFAULT_PROFILE,
         help="Encoding profile (default: %(default)s).",
+    )
+    p.add_argument(
+        "--preset",
+        choices=[
+            "ultrafast", "superfast", "veryfast", "faster", "fast",
+            "medium", "slow", "slower", "veryslow",
+        ],
+        help="x264 speed/quality preset, overriding the profile "
+             "(faster = quicker but larger files).",
     )
     p.add_argument(
         "--path",
@@ -199,6 +210,8 @@ def _resolve_yle() -> tuple[Path, Path] | int:
 def _run_conversion(args: argparse.Namespace, src: Path, auto: bool) -> int:
     """Probe src, decide the output path, and transcode. `auto` skips prompts."""
     profile = PROFILES[args.profile]
+    if args.preset:
+        profile = dataclasses.replace(profile, preset=args.preset)
 
     try:
         info = probe(src)
@@ -231,9 +244,16 @@ def _run_conversion(args: argparse.Namespace, src: Path, auto: bool) -> int:
             return 1
     dst.parent.mkdir(parents=True, exist_ok=True)
 
-    console.print(
-        f"Converting with [cyan]{profile.name}[/cyan] profile → [green]{dst}[/green]"
-    )
+    copy_v, copy_a = plan(profile, info)
+    if copy_v and copy_a:
+        how = "[green]remuxing (no re-encode — already MIB3-ready)[/green]"
+    elif copy_v:
+        how = f"copying video, re-encoding audio · [cyan]{profile.name}[/cyan]"
+    elif copy_a:
+        how = f"re-encoding video ([cyan]{profile.preset}[/cyan]), copying audio"
+    else:
+        how = f"re-encoding · [cyan]{profile.name}[/cyan] · preset [cyan]{profile.preset}[/cyan]"
+    console.print(f"{how} → [green]{dst}[/green]")
 
     # --- convert with progress ------------------------------------------
     progress = Progress(
