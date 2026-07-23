@@ -1,42 +1,104 @@
-# mib3convert
+# mib3-dl (`mib3convert`)
 
-Convert virtually **any** video (`.mkv`, `.avi`, `.wmv`, `.mov`, …) into an MP4
-that VW **MIB3 / MOI3** infotainment units will actually play — with an
-interactive terminal file picker.
+Convert virtually **any** video into an MP4 that VW **MIB3 / MOI3** infotainment
+units will actually play — or download straight from **Yle Areena** and convert
+in one step — all from a friendly terminal UI.
 
-Car head units are picky: they silently *grey out* files that use the wrong
-codec, an unusual frame rate, or multichannel audio. `mib3convert` re-encodes to
-a known-good target: **H.264 (MP4) + stereo AAC**, sane resolution, capped frame
-rate, and a fast-start `moov` atom.
+Car head units are fussy: they silently *grey out* files that use the wrong
+codec, an unusual frame rate, or multichannel audio. `mib3convert` re-encodes
+everything to a known-good target and hands you a file you can drop on a USB
+stick and play in the car.
+
+---
+
+## Table of contents
+
+- [Why this exists](#why-this-exists)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Interactive (the normal way)](#interactive-the-normal-way)
+  - [Downloading from Yle Areena](#downloading-from-yle-areena)
+  - [Converting a local file directly](#converting-a-local-file-directly)
+  - [All command-line options](#all-command-line-options)
+- [Encoding profiles](#encoding-profiles)
+- [The output format (technical target)](#the-output-format-technical-target)
+- [How it works](#how-it-works)
+- [Tips for the car](#tips-for-the-car)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
+---
+
+## Why this exists
+
+VW MIB3 / MOI3 media players accept only a narrow slice of what "video files"
+can be. Community testing shows the usual reasons a file refuses to play (it
+appears greyed-out and unselectable) are:
+
+- a codec/container the unit doesn't support,
+- a **frame rate above ~30 fps**, or
+- **multichannel / 5.1 audio**.
+
+`mib3convert` removes the guesswork by always producing an **MP4 / H.264 /
+stereo AAC** file with a capped frame rate, a safe resolution, and a fast-start
+`moov` atom, so the unit sees exactly what it expects.
+
+## Features
+
+- 🎛 **Full-screen terminal UI** — pick your source and browse files with the
+  arrow keys; no need to remember paths.
+- 🔎 **Fuzzy file search** — start typing to filter; `dh` finds `Die Hard.mkv`.
+- 📥 **Yle Areena downloads built in** — paste a programme address and it
+  downloads (via the bundled `yle-dl`) and converts automatically.
+- 🎯 **Known-good MIB3/MOI3 target** — H.264 MP4 + stereo AAC, capped fps,
+  faststart.
+- 🧩 **Profiles** — `safe` (default), `strict`, and `compat` for stubborn units.
+- 📊 **Live progress bar** during encoding.
+- 🧹 **Safe by default** — never overwrites the input, cleans up partial files
+  on cancel, and removes temporary downloads when done.
 
 ## Requirements
 
-- Python 3.9+
-- [`ffmpeg`](https://ffmpeg.org/) and `ffprobe` on your `PATH`
+- **Python 3.9+**
+- **[`ffmpeg`](https://ffmpeg.org/)** and **`ffprobe`** on your `PATH`
   - Debian/Ubuntu: `sudo apt install ffmpeg`
   - macOS: `brew install ffmpeg`
-- Downloading from Yle Areena works out of the box —
-  [`yle-dl`](https://aajanki.github.io/yle-dl/) is bundled as a dependency and
-  installed automatically.
+  - Windows: install ffmpeg and add it to `PATH`
+- **Yle Areena downloads work out of the box** — the
+  [`yle-dl`](https://aajanki.github.io/yle-dl/) tool is a bundled dependency and
+  is installed automatically. Nothing extra to install.
 
-## Install
+## Installation
+
+Install with [pipx](https://pipx.pypa.io/) (recommended — it keeps the tool and
+all its dependencies isolated):
 
 ```bash
 pipx install .
-# or, from a checkout during development:
+```
+
+For development from a checkout:
+
+```bash
 pipx install --editable .
 ```
 
-This installs the `mib3convert` command together with everything it needs,
-including `yle-dl` for Yle Areena downloads.
+This installs the **`mib3convert`** command along with everything it needs,
+including `yle-dl`.
 
 ## Usage
 
-Just run it — you'll be asked where the video comes from:
+### Interactive (the normal way)
+
+Just run it:
 
 ```bash
 mib3convert
 ```
+
+You'll first be asked where the video comes from:
 
 ```
  Where is the video?
@@ -46,54 +108,123 @@ mib3convert
  ╰──────────────────────────────────────────╯
 ```
 
-- **Yle Areena** — paste the programme address (e.g.
-  `https://areena.yle.fi/1-72801351`); it downloads with `yle-dl` and converts
-  automatically, no further questions. The MP4 lands in the current directory.
-- **Local file** — opens a full-screen, arrow-navigable picker (type to
-  fuzzy-search, ↑/↓ to move, Enter to pick).
+- **↑ / ↓** move, **Enter** selects, **Esc** cancels.
 
-Skip the menu by naming a local file directly (also lets you choose the output):
+Choose **Local file** and you get a full-screen picker that recursively lists
+the video files under the search folder. Type to fuzzy-search, arrow to the one
+you want, press **Enter**, and it converts.
+
+### Downloading from Yle Areena
+
+Choose **Yle Areena** and you'll be asked for the address:
+
+```
+? Paste the Yle Areena video address: https://areena.yle.fi/1-72801351
+```
+
+From there it's fully automatic — it downloads the programme and converts it to
+a MIB3-ready MP4 **with no further questions**. The finished file is written to
+your **current directory** as `<programme title>_mib3.mp4`, and the temporary
+download is cleaned up afterwards.
+
+> Note: much of Yle Areena is only available inside Finland. If a download
+> fails, the tool shows `yle-dl`'s error with a hint.
+
+### Converting a local file directly
+
+Skip the menu entirely by naming a file (and optionally the output):
 
 ```bash
+mib3convert movie.mkv
 mib3convert movie.mkv -o /media/usb/movie.mp4
 ```
 
-Point the local picker at a specific folder:
+Point the local picker at a specific folder instead of the current directory:
 
 ```bash
 mib3convert --path ~/Downloads
 ```
 
-Pick an encoding profile:
+Pick a profile:
 
 ```bash
 mib3convert --profile strict big_movie.avi
 mib3convert --list-profiles
 ```
 
-## Profiles
+### All command-line options
 
-| Profile  | Target                                                                 |
-| -------- | ---------------------------------------------------------------------- |
-| `safe`   | 1280×720, keeps source fps up to 30, 192k stereo AAC. **Default.**     |
-| `strict` | 1280×720, forces 23.976 fps, 320k stereo AAC. Use if `safe` greys out. |
-| `compat` | 854×480, 23.976 fps, H.264 Main, 192k stereo AAC. Oldest units.        |
+```
+mib3convert [input]
 
-The output is always MP4 / H.264 / yuv420p / stereo AAC with `+faststart`.
+positional:
+  input                 Input video file. If omitted, the source menu opens.
+
+options:
+  -o, --output FILE     Output file (default: <input>_mib3.mp4 next to input,
+                        or ./<title>_mib3.mp4 for Yle downloads).
+  -p, --profile NAME    Encoding profile: safe | strict | compat
+                        (default: safe).
+  --path DIR            Folder the local file picker searches
+                        (default: current directory).
+  --list-profiles       Show the available profiles and exit.
+  -y, --yes             Overwrite the output file without asking.
+  --version             Show the version and exit.
+  -h, --help            Show help and exit.
+```
+
+## Encoding profiles
+
+| Profile  | Resolution | Frame rate           | Audio            | When to use                              |
+| -------- | ---------- | -------------------- | ---------------- | ---------------------------------------- |
+| `safe`   | ≤ 1280×720 | keeps source, ≤30fps | 192k stereo AAC  | **Default.** Works on most MIB3 units.   |
+| `strict` | ≤ 1280×720 | forced 23.976 fps    | 320k stereo AAC  | If `safe` greys out on a picky unit.     |
+| `compat` | ≤ 854×480  | forced 23.976 fps    | 192k stereo AAC  | Oldest / lowest-end units.               |
+
+All profiles output MP4 / H.264 / `yuv420p` / stereo AAC with `+faststart`.
+Aspect ratio is always preserved and the video is never upscaled.
+
+## The output format (technical target)
+
+Regardless of profile, every output is:
+
+- **Container:** MP4, with the `moov` atom moved to the front (`+faststart`)
+- **Video:** H.264 (`libx264`), `yuv420p`, High (or Main for `compat`) profile
+- **Resolution:** scaled to fit the profile's box, aspect-preserving, even
+  dimensions, never upscaled
+- **Frame rate:** capped (or forced) per profile to stay within what MIB3 accepts
+- **Audio:** AAC-LC, **stereo** (5.1 is downmixed), 48 kHz
+- **Subtitles:** dropped (they can prevent playback on some units)
+
+## How it works
+
+1. **Source selection** — a Textual menu (Yle Areena vs. local file).
+2. **Acquire** — either `yle-dl` downloads the programme into a temp folder, or
+   you pick a local file via the fuzzy picker.
+3. **Probe** — `ffprobe` reads the source's resolution, frame rate, and audio.
+4. **Transcode** — `ffmpeg` re-encodes to the chosen profile, streaming a live
+   progress bar (partial output is deleted if you cancel).
+5. **Done** — you get a ready-to-play MP4; temporary downloads are removed.
 
 ## Tips for the car
 
 - Format the USB stick as **FAT32** or **exFAT**.
 - If a file still greys out, try `--profile strict`, then `--profile compat`.
-- Some units limit the number of files per folder — keep it tidy.
+- Some units limit how many files a folder may contain — keep folders tidy.
 
-## Compatibility notes
+## Troubleshooting
 
-Targets are based on community testing of MIB3 media playback (frame rates above
-~30 fps and 5.1 audio are the usual culprits for rejected files). Behaviour
-varies by firmware/region; the `strict` and `compat` profiles exist for stubborn
-units.
+| Symptom                                   | Fix                                                        |
+| ----------------------------------------- | --------------------------------------------------------- |
+| `ffmpeg not found`                        | Install ffmpeg (see [Requirements](#requirements)).       |
+| File plays audio but greys out on screen  | Use `--profile strict`, then `--profile compat`.          |
+| Yle download fails                        | Content may be Finland-only; check the address & network. |
+| Picker shows no files                     | Point it at the right folder with `--path`.               |
 
 ## License
 
-MIT
+**Proprietary — All Rights Reserved.** This project is **not** open source.
+No part of it may be copied, modified, distributed, or used without the prior
+explicit written permission of the author. See [`LICENSE`](LICENSE) for the full
+terms. To request permission, contact the author via
+[github.com/jugih-official](https://github.com/jugih-official).
