@@ -1,13 +1,8 @@
 # mib3-dl (`mib3convert`)
 
-Convert virtually **any** video into an MP4 that VW **MIB3 / MOI3** infotainment
+Convert virtually **any** video into an MP4 that VW **MIB3, MOI3** infotainment
 units will actually play — or download straight from **Yle Areena** and convert
 in one step — all from a friendly terminal UI.
-
-Car head units are fussy: they silently *grey out* files that use the wrong
-codec, an unusual frame rate, or multichannel audio. `mib3convert` re-encodes
-everything to a known-good target and hands you a file you can drop on a USB
-stick and play in the car.
 
 ---
 
