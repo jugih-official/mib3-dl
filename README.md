@@ -42,22 +42,22 @@ stereo AAC** file with a capped frame rate, a safe resolution, and a fast-start
 
 ## Features
 
-- 🎛 **Full-screen file browser** — navigate the whole filesystem with the arrow
+- **Full-screen file browser** — navigate the whole filesystem with the arrow
   keys: open folders, go up with `../` (or `Ctrl+U`), or type a path like
   `/media/usb` to jump anywhere. Works no matter where your file lives.
-- 📂 **Choose the output folder** — after picking the source, pick where the
+- **Choose the output folder** — after picking the source, pick where the
   result goes (e.g. straight onto a mounted USB stick).
-- 🔎 **Fuzzy file search** — start typing to filter the current folder; `dh`
+- **Fuzzy file search** — start typing to filter the current folder; `dh`
   finds `Die Hard.mkv`.
-- 📥 **Yle Areena downloads built in** — paste a programme address and it
+- **Yle Areena downloads built in** — paste a programme address and it
   downloads (via the bundled `yle-dl`) and converts automatically.
-- 🎯 **Known-good MIB3/MOI3 target** — H.264 MP4 + stereo AAC, capped fps,
+- **Known-good MIB3/MOI3 target** — H.264 MP4 + stereo AAC, capped fps,
   faststart.
-- ⚡ **Fast** — a quick x264 preset by default, and if a file already meets the
+- **Fast** — a quick x264 preset by default, and if a file already meets the
   MIB3 spec it's **remuxed instead of re-encoded** (near-instant).
-- 🧩 **Profiles** — `safe` (default), `strict`, and `compat` for stubborn units.
-- 📊 **Live progress bar** during encoding.
-- 🧹 **Safe by default** — never overwrites the input, cleans up partial files
+- **Profiles** — `safe` (default), `strict`, and `compat` for stubborn units.
+- **Live progress bar** during encoding.
+- **Safe by default** — never overwrites the input, cleans up partial files
   on cancel, and removes temporary downloads when done.
 
 ## Requirements
@@ -124,16 +124,16 @@ Once you've picked the file, a second screen asks **where to save the result**:
 
 ```
  Select the output folder
- 📁 /media/usb
+ /media/usb
  ╭──────────────────────────────────────────╮
- │ > ✓ Use this folder                       │
+ │ > Use this folder                         │
  │   ../  (parent folder)                    │
  │   movies/                                 │
  ╰──────────────────────────────────────────╯
 ```
 
 Navigate the same way (arrows, `../`, `Ctrl+U`, or type a path), then pick
-**✓ Use this folder** to save there — handy for writing straight to a mounted
+**Use this folder** to save there — handy for writing straight to a mounted
 USB stick. The file is named `<source name>_mib3.mp4`.
 
 Output names are automatically made **FAT32/exFAT-safe**: characters those
