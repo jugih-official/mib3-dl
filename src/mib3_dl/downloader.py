@@ -37,8 +37,8 @@ def ensure_yle_dl() -> None:
     if _yle_base_cmd() is None:
         raise YleDlNotFound(
             "yle-dl is not available (needed to download from Yle Areena).\n"
-            "It ships with this app; try reinstalling:  pipx install --force mib3convert\n"
-            "Or add it manually:  pipx inject mib3convert yle-dl"
+            "It ships with this app; try reinstalling:  pipx install --force mib3-dl\n"
+            "Or add it manually:  pipx inject mib3-dl yle-dl"
         )
 
 

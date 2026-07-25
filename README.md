@@ -1,4 +1,4 @@
-# mib3-dl (`mib3convert`)
+# mib3-dl
 
 Convert virtually **any** video into an MP4 that VW **MIB3, MOI3** infotainment
 units will actually play — or download straight from **Yle Areena** and convert
@@ -36,7 +36,7 @@ appears greyed-out and unselectable) are:
 - a **frame rate above ~30 fps**, or
 - **multichannel / 5.1 audio**.
 
-`mib3convert` removes the guesswork by always producing an **MP4 / H.264 /
+`mib3-dl` removes the guesswork by always producing an **MP4 / H.264 /
 stereo AAC** file with a capped frame rate, a safe resolution, and a fast-start
 `moov` atom, so the unit sees exactly what it expects.
 
@@ -86,7 +86,7 @@ For development from a checkout:
 pipx install --editable .
 ```
 
-This installs the **`mib3convert`** command along with everything it needs,
+This installs the **`mib3-dl`** command along with everything it needs,
 including `yle-dl`.
 
 ## Usage
@@ -96,7 +96,7 @@ including `yle-dl`.
 Just run it:
 
 ```bash
-mib3convert
+mib3-dl
 ```
 
 You'll first be asked where the video comes from:
@@ -136,6 +136,12 @@ Navigate the same way (arrows, `../`, `Ctrl+U`, or type a path), then pick
 **✓ Use this folder** to save there — handy for writing straight to a mounted
 USB stick. The file is named `<source name>_mib3.mp4`.
 
+Output names are automatically made **FAT32/exFAT-safe**: characters those
+filesystems reject (`: " * ? < > | \ /`) are replaced, so titles like
+`Tuuri: Vauvakisa: 2026-06-27T08:14` become
+`Tuuri-Vauvakisa-2026-06-27T08-14_mib3.mp4` and can be written straight to a
+USB stick. (An explicit `-o` path is used exactly as you give it.)
+
 ### Downloading from Yle Areena
 
 Choose **Yle Areena** and you'll be asked for the address:
@@ -161,27 +167,27 @@ temporary download is cleaned up afterwards.
 Skip the menu entirely by naming a file (and optionally the output):
 
 ```bash
-mib3convert movie.mkv
-mib3convert movie.mkv -o /media/usb/movie.mp4
+mib3-dl movie.mkv
+mib3-dl movie.mkv -o /media/usb/movie.mp4
 ```
 
 Point the local picker at a specific folder instead of the current directory:
 
 ```bash
-mib3convert --path ~/Downloads
+mib3-dl --path ~/Downloads
 ```
 
 Pick a profile:
 
 ```bash
-mib3convert --profile smooth big_movie.avi
-mib3convert --list-profiles
+mib3-dl --profile smooth big_movie.avi
+mib3-dl --list-profiles
 ```
 
 ### All command-line options
 
 ```
-mib3convert [input]
+mib3-dl [input]
 
 positional:
   input                 Input video file. If omitted, the source menu opens.
@@ -272,6 +278,7 @@ Re-encoding video is inherently CPU-heavy. Two things keep it quick:
 | `ffmpeg not found`                        | Install ffmpeg (see [Requirements](#requirements)).       |
 | **Audio plays but no picture / black**    | The source was High-profile H.264. The default `safe` profile now re-encodes to Baseline — reconvert with the current version. Still failing? Try `--profile compat`. |
 | File greys out / won't select             | Try `--profile compat` (smaller, Level 3.0).              |
+| `Error opening output … Invalid argument` | The name contained characters FAT32 rejects. Auto-generated names are now sanitised; if you passed `-o`, remove `: " * ? < > \| \` from it. |
 | Yle download fails                        | Content may be Finland-only; check the address & network. |
 | Picker shows no files                     | Browse to the folder, or type its path in the picker.     |
 
@@ -288,7 +295,7 @@ plus corroborating owner reports:
   profile. High/Main-profile streams commonly result in **audio with no
   picture** — the single most-reported MIB3 video problem. Every confirmed
   working community config uses Baseline (typically Level 3.0/3.1, ≤720p,
-  23.976 fps, stereo AAC). `mib3convert` targets exactly that.
+  23.976 fps, stereo AAC). `mib3-dl` targets exactly that.
 - Frame rates at/above 30 fps and 5.1 audio are known to make files rejected or
   greyed-out, so output is 23.976 fps and stereo by default.
 

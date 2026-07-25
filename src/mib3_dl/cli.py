@@ -1,10 +1,11 @@
-"""Command-line entry point for mib3convert."""
+"""Command-line entry point for mib3-dl."""
 
 from __future__ import annotations
 
 import argparse
 import dataclasses
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -46,7 +47,7 @@ console = Console()
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="mib3convert",
+        prog="mib3-dl",
         description="Convert virtually any video into a VW MIB3 / MOI3 friendly MP4.",
     )
     p.add_argument(
@@ -88,7 +89,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Overwrite the output file without asking.",
     )
-    p.add_argument("--version", action="version", version=f"mib3convert {__version__}")
+    p.add_argument("--version", action="version", version=f"mib3-dl {__version__}")
     return p
 
 
@@ -116,8 +117,31 @@ def _show_source(info: MediaInfo, src: Path) -> None:
     console.print(Panel(table, title="Source", expand=False, border_style="dim"))
 
 
+# Characters that are illegal in FAT32 / exFAT filenames — the formats VW head
+# units require on a USB stick. Yle programme titles routinely contain ':'
+# (e.g. "Tuuri: Vauvakisa: 2026-06-27T08:14"), which makes the file impossible
+# to create on the stick, so auto-generated names are always sanitised.
+_ILLEGAL_FS_CHARS = '<>:"/\\|?*'
+_MAX_STEM = 120
+
+
+def safe_filename(stem: str, fallback: str = "video") -> str:
+    """Turn a title into a filename that FAT32/exFAT (and NTFS) will accept."""
+    cleaned = "".join(
+        "-" if (ch in _ILLEGAL_FS_CHARS or ord(ch) < 32) else ch for ch in stem
+    )
+    # Collapse dash/space clusters: "Tuuri- Vauvakisa- 2026" -> "Tuuri-Vauvakisa-2026"
+    cleaned = re.sub(r"[-\s]*-[-\s]*", "-", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    # FAT and Windows disallow trailing dots/spaces.
+    cleaned = cleaned.strip(" .-")
+    if len(cleaned) > _MAX_STEM:
+        cleaned = cleaned[:_MAX_STEM].rstrip(" .-")
+    return cleaned or fallback
+
+
 def _default_output(src: Path) -> Path:
-    return src.with_name(f"{src.stem}_mib3.mp4")
+    return src.with_name(f"{safe_filename(src.stem)}_mib3.mp4")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -253,10 +277,10 @@ def _run_conversion(
     if args.output:
         dst = Path(args.output).expanduser()
     elif out_dir is not None:
-        dst = out_dir / f"{src.stem}_mib3.mp4"
+        dst = out_dir / f"{safe_filename(src.stem)}_mib3.mp4"
     elif auto:
         # Downloaded original lives in a temp dir; drop the result in the CWD.
-        dst = Path.cwd() / f"{src.stem}_mib3.mp4"
+        dst = Path.cwd() / f"{safe_filename(src.stem)}_mib3.mp4"
     else:
         dst = _default_output(src)
 
@@ -280,6 +304,19 @@ def _run_conversion(
     if not os.access(dst.parent, os.W_OK):
         console.print(f"[red]Output folder is not writable:[/red] {dst.parent}")
         return 2
+    # Prove the exact filename can be created here before spending minutes
+    # encoding — catches illegal names, full disks and read-only mounts early.
+    if not dst.exists():
+        try:
+            dst.touch()
+            dst.unlink()
+        except OSError as exc:
+            console.print(f"[red]Cannot create output file:[/red] {dst}\n{exc}")
+            console.print(
+                "[yellow]Tip: FAT32/exFAT sticks reject : \" * ? < > | \\ in "
+                "filenames. Use -o to choose a different name.[/yellow]"
+            )
+            return 2
 
     copy_v, copy_a = plan(profile, info)
     if copy_v and copy_a:
